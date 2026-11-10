@@ -1,0 +1,4 @@
+# name | before | command
+# before = fail : new behaviour, must fail before the build
+# before = pass : regression guard, must pass before and after
+# Run: tools/run_checks.py runs/<id>/checks.txt --stage before|after --cwd <project folder>

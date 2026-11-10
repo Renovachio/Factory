@@ -1,0 +1,6 @@
+__pycache__/
+.DS_Store
+# project-specific material stays local
+packs/private/
+runs/*
+!runs/.gitkeep
