@@ -3,20 +3,47 @@
 A tool-agnostic set of agent roles and rules that takes a request, questions you until the brief is complete,
 and delivers a verified result with an approval gate at every stage.
 
-## How to start a task
+## Install (once)
 
-In any tool, open a session with this folder available and say:
+    git clone https://github.com/Renovachio/Factory ~/Documents/Factory
+    ~/Documents/Factory/bin/install.sh
 
-> Read ~/Documents/Factory/AGENTS.md. You are the Admin. My request: …
+The installer links the `factory` command into `~/.local/bin`, adds that folder to your PATH if needed,
+turns on the pre-commit hook that runs the tests, and runs `factory doctor`.
 
-The Admin questions you, writes `runs/<id>/brief.md`, and stops at Gate 1.
+## Use from the terminal
 
-| Tool | Setup |
+Run it from the project you are working on:
+
+    cd ~/code/my-project
+    factory "what you want done"
+
+| Command | What it does |
 |---|---|
-| Claude Code | Run it in this folder, or copy `.claude/agents/*` to `~/.claude/agents/` to use the roles from any repo. |
-| Claude desktop/web app | Connect this folder (plus the project folder) and use the sentence above. |
-| Codex | It reads `AGENTS.md` on its own when started in this folder. From another repo, use the sentence above. |
-| Cursor / other | Use the sentence above. Fill in the model names in `core/tiers.md`. |
+| `factory "request"` | Syncs the roles, checks integrity, creates the run folder, starts the tool with the Admin |
+| `factory resume` | Continues the last session in this folder |
+| `factory check <run-id> [repo]` | Runs every check script on a run, in order, with one result |
+| `factory status` | Scorecard, integrity, runs still waiting for an approval |
+| `factory doctor` | Verifies the installation and runs the tests |
+| `factory prompt "request"` | Sets up the run and prints the start sentence, to paste into any other tool |
+
+`FACTORY_TOOL=codex factory "…"` starts another command-line tool instead of Claude Code.
+
+## What is automated, and what never is
+
+Automated by plain commands, with no model involved: copying the role files to `~/.claude/agents` on every
+start, the integrity check, run folder and templates, running all checks, the scorecard, and the tests before
+any commit to the Factory.
+
+Never automated: approving a gate, changing the Factory's own rules, committing to your project beyond what a
+work order allows, pushing anywhere, and anything on shared machines. Those stay with you.
+
+## Other tools
+
+| Tool | How |
+|---|---|
+| Claude desktop/web app | Connect this folder and the project folder, then paste the output of `factory prompt "…"`. |
+| Codex, Cursor, others | `factory prompt "…"` and paste, or set `FACTORY_TOOL`. Fill in the model names in `core/tiers.md`. |
 
 ## How a task flows
 
@@ -64,7 +91,7 @@ outside the branch, and only the Admin talks to you.
 ## Folders
 
 `core/` rules, admin, tiers · `agents/` six roles · `templates/` eleven documents · `tools/` check scripts and
-their tests · `packs/` generic domain knowledge · `packs/private/` packs and name indexes about your own projects (not in git) ·
+their tests · `bin/` launcher and installer · `hooks/` pre-commit · `packs/` generic domain knowledge · `packs/private/` packs and name indexes about your own projects (not in git) ·
 `runs/` one folder per task and the defect log (not in git) · `.claude/agents/` thin Claude Code wrappers.
 
 ## Packs

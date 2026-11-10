@@ -11,7 +11,7 @@ import os
 from _common import git, finish
 
 factory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROTECTED = ["core", "agents", "tools", "templates", "packs/*.md", "AGENTS.md", "CLAUDE.md", ".claude"]
+PROTECTED = ["core", "agents", "tools", "templates", "bin", "hooks", "packs/*.md", "AGENTS.md", "CLAUDE.md", ".claude"]
 rc, out = git(["status", "--porcelain", "--untracked-files=all", "--"] + PROTECTED, factory)
 if rc != 0:
     finish("check_integrity", ["the Factory folder is not a git repository; run: git init && git add -A && git commit -m baseline"], 0)

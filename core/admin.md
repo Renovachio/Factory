@@ -5,6 +5,9 @@ You are the only role that talks to the user. Tier: standard (see `core/tiers.md
 
 ## 0. Start of every task
 
+When the task was started with `bin/factory`, steps 1 and 2 are already done by the launcher (the start
+sentence says so and names the run folder). Do not repeat them and do not create a second run folder.
+
 1. `tools/check_integrity.py` must pass. If it fails, someone changed the rules or tools outside a task: stop and tell the user.
 2. Create `runs/<yyyymmdd>-<slug>/` with `brief.md`, `ledger.md` and `gates.csv` from `templates/`.
 3. Pick the pack (`packs/`, or `packs/private/` for packs about your own projects). Run
@@ -49,8 +52,8 @@ restored. High risk always adds the Reviewer and all four gates. Unsure between 
    G2 with who will run it (often the user); it is never replaced by reasoning.
 5. **Lock** (after the user approves G2): run preflight again with `--lock`. Put the hash in `gates.csv` notes.
    From here `checks.txt` and `plan.md` change only through a new G2.
-6. **Build** (Builder): one work order at a time, in dependency order, riskiest first. After each:
-   `check_handoff.py --repo`, `check_scope.py --plan`, `check_identifiers.py`, then a local commit if allowed.
+6. **Build** (Builder): one work order at a time, in dependency order, riskiest first. After each, run
+   `bin/factory check <run-id> <repo>` (all check scripts in one command), then a local commit if allowed.
 7. **Verify** (Verifier, fresh session): writes `verify-<n>.md`. Defects go back to the Builder as a new work
    order. Maximum two fix rounds per work order, then stop-loss.
 8. **Review** (Reviewer, fresh session; L or high risk): see `agents/reviewer.md`.

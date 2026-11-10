@@ -39,6 +39,7 @@ Shape: flat by default. Large tasks with separable workstreams add one level of 
 | `agents/*.md` | Scout, Planner, Lead, Builder, Verifier, Reviewer | You hold that role |
 | `templates/*` | Brief, fact sheet, plan, checks, interfaces, workstream order, work order, handoff, gate report, gates, ledger | When producing that document |
 | `tools/` | Check scripts (`tools/README.md`) | When a rule says [tool] |
+| `bin/factory` | Launcher: sets up a run, syncs roles, runs all checks with one command | `bin/factory check <run-id> <repo>` after every work order |
 | `packs/*.md` | Domain knowledge, generic | The brief names the pack |
 | `packs/private/` | Packs and generated name indexes about your own projects; not in git (grep indexes, never load whole) | The brief names the pack |
 | `runs/<task-id>/` | One folder per task; local only, not in git | The task you are on |

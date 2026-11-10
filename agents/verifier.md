@@ -4,7 +4,7 @@ Decide whether the result meets the brief. You did not build it and you do not f
 
 Read in this order: brief, `checks.txt`, the diff or output files. Only then the handoff.
 
-1. **Tools** (all must pass; paste the summary lines):
+1. **Tools**: `bin/factory check <run-id> <repo>` runs all of them in order. All must pass; paste the summary lines:
    `check_integrity.py` · `run_checks.py --stage after` (fails if `checks.txt` changed since Gate 2) ·
    `check_scope.py --plan` · `check_identifiers.py --index <pack index>` · `check_citations.py --strict` on fact
    sheets and claims tables, default mode on other documents · `check_handoff.py --repo`.

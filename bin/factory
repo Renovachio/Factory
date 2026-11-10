@@ -1,0 +1,116 @@
+#!/bin/bash
+# Factory launcher. Does every mechanical step with plain commands, then hands over to the agent.
+# The agent never runs this setup itself, and nothing here approves a gate, commits to a project or pushes.
+#
+#   factory "what you want done"     start a task in the current folder (run it from your project)
+#   factory resume                   continue the last session in this folder
+#   factory check <run-id> [repo]    run every check script on a run (repo = project that was changed)
+#   factory status                   scorecard, integrity, open runs
+#   factory doctor                   verify the installation (python, git, tool, tests, roles in sync)
+#   factory sync                     copy the role wrappers to ~/.claude/agents (also done on every start)
+#   factory prompt "request"         print the start sentence, to paste into any other tool
+#
+# FACTORY_TOOL=claude (default) or codex. Bash 3.2 compatible (macOS).
+set -u
+SELF="$0"; while [ -L "$SELF" ]; do L="$(readlink "$SELF")"; case "$L" in /*) SELF="$L";; *) SELF="$(dirname "$SELF")/$L";; esac; done
+FACTORY="$(cd "$(dirname "$SELF")/.." && pwd)"
+TOOL="${FACTORY_TOOL:-claude}"
+say() { printf '%s\n' "$*"; }
+
+sync_roles() {
+  local dest="$HOME/.claude/agents" n=0 f
+  mkdir -p "$dest" || return 1
+  for f in "$FACTORY"/.claude/agents/factory-*.md; do
+    [ -f "$f" ] || continue
+    # wrappers carry the Factory's real location, so they work wherever it is installed
+    python3 - "$f" "$dest/$(basename "$f")" "$FACTORY" <<'PY' && n=$((n+1))
+import sys, os
+src, dst, factory = sys.argv[1:4]
+text = open(src, encoding="utf-8").read().replace("~/Documents/Factory", factory)
+if os.path.isfile(dst) and open(dst, encoding="utf-8").read() == text: sys.exit(1)
+open(dst, "w", encoding="utf-8").write(text)
+PY
+  done
+  [ "$n" -gt 0 ] && say "factory: updated $n role file(s) in $dest"
+  return 0
+}
+
+integrity() { python3 "$FACTORY/tools/check_integrity.py"; }
+
+new_run() {  # prints the run id
+  local slug id
+  slug="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | cut -c1-40 | sed 's/^-//; s/-$//')"
+  id="$(date +%Y%m%d)-${slug:-task}"
+  [ -e "$FACTORY/runs/$id" ] && id="$id-$(date +%H%M%S)"
+  mkdir -p "$FACTORY/runs/$id"
+  for t in brief.md ledger.md gates.csv checks.txt; do cp "$FACTORY/templates/$t" "$FACTORY/runs/$id/$t"; done
+  [ -f "$FACTORY/runs/defects.csv" ] || cp "$FACTORY/templates/defects.csv" "$FACTORY/runs/defects.csv"
+  python3 - "$FACTORY/runs/$id" "$id" "$1" "$PWD" <<'PY'
+import sys, os, datetime
+d, rid, request, cwd = sys.argv[1:5]
+for name in ("brief.md", "ledger.md"):
+    p = os.path.join(d, name); s = open(p, encoding="utf-8").read()
+    s = s.replace("<yyyymmdd-slug>", rid).replace("<task id>", rid)
+    if name == "ledger.md":
+        s += f"\n## Request as given by the user ({datetime.date.today()}, started in {cwd})\n\n> {request}\n"
+    open(p, "w", encoding="utf-8").write(s)
+PY
+  printf '%s' "$id"
+}
+
+start_sentence() {  # $1 run id, $2 request
+  say "Read $FACTORY/AGENTS.md. You are the Admin. The run folder $FACTORY/runs/$1 already exists with the templates, and the integrity check has passed. Working folder: $PWD. My request: $2"
+}
+
+cmd="${1:-help}"
+case "$cmd" in
+  help|-h|--help) sed -n '2,13p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  sync) sync_roles ;;
+  doctor)
+    bad=0
+    for b in python3 git; do command -v $b >/dev/null 2>&1 && say "ok    $b: $($b --version 2>&1 | head -1)" || { say "MISSING $b"; bad=1; }; done
+    command -v "$TOOL" >/dev/null 2>&1 && say "ok    $TOOL found" || { say "MISSING '$TOOL' on PATH (set FACTORY_TOOL, or use: factory prompt \"...\")"; bad=1; }
+    sync_roles || bad=1
+    integrity || bad=1
+    python3 "$FACTORY/tools/tests/run_tests.py" | tail -1 || bad=1
+    [ "$(git -C "$FACTORY" config core.hooksPath)" = "hooks" ] && say "ok    pre-commit hook active" || say "note  pre-commit hook not active (run bin/install.sh)"
+    exit $bad ;;
+  status)
+    integrity; python3 "$FACTORY/tools/scorecard.py"
+    say "Open runs (no G4 approval):"
+    for d in "$FACTORY"/runs/*/; do [ -f "$d/gates.csv" ] || continue
+      case "$d" in *EXAMPLE*) continue;; esac
+      grep -q '^G4,.*,approve,' "$d/gates.csv" || say "  $(basename "$d")  last gate: $(tail -n +2 "$d/gates.csv" | tail -1 | cut -d, -f1,3 | tr ',' ' ')"
+    done ;;
+  check)
+    run="${2:?usage: factory check <run-id> [repo]}"; repo="${3:-}"; rd="$FACTORY/runs/$run"
+    [ -d "$rd" ] || { say "no such run: $rd"; exit 2; }
+    fail=0; step() { say ""; say "== $1"; shift; "$@" || fail=1; }
+    step "integrity" integrity
+    step "acceptance checks" python3 "$FACTORY/tools/run_checks.py" "$rd/checks.txt" --stage after --cwd "${repo:-$PWD}"
+    for f in "$rd"/fact-sheet*.md "$rd"/*/fact-sheet*.md; do [ -f "$f" ] && step "citations: $(basename "$f")" python3 "$FACTORY/tools/check_citations.py" --strict "$f"; done
+    if [ -n "$repo" ]; then
+      step "scope" python3 "$FACTORY/tools/check_scope.py" --repo "$repo" --plan "$rd/plan.md"
+      idx=""; for i in "$FACTORY"/packs/private/generated/*.md; do [ -f "$i" ] && idx="$idx $i"; done
+      if [ -n "$idx" ]; then step "unseen names" python3 "$FACTORY/tools/check_identifiers.py" --repo "$repo" --index $idx
+      else step "unseen names" python3 "$FACTORY/tools/check_identifiers.py" --repo "$repo"; fi
+    else say ""; say "== scope, unseen names: NOT RUN (no repo given)"; fi
+    for f in "$rd"/handoff-*.md "$rd"/*/handoff-*.md; do [ -f "$f" ] || continue
+      if [ -n "$repo" ]; then step "handoff: $(basename "$f")" python3 "$FACTORY/tools/check_handoff.py" "$f" --repo "$repo"
+      else step "handoff: $(basename "$f")" python3 "$FACTORY/tools/check_handoff.py" "$f"; fi; done
+    say ""; [ $fail -eq 0 ] && say "factory check: ALL PASS" || say "factory check: FAILED (see above)"; exit $fail ;;
+  resume)
+    sync_roles; integrity || { say "factory: rules or tools changed outside a commit. Review with: git -C $FACTORY status"; exit 1; }
+    exec "$TOOL" --add-dir "$FACTORY" -c ;;
+  prompt)
+    shift; [ $# -gt 0 ] || { say 'usage: factory prompt "request"'; exit 2; }
+    id="$(new_run "$*")"; start_sentence "$id" "$*" ;;
+  *)
+    [ $# -gt 0 ] || { say 'usage: factory "what you want done"'; exit 2; }
+    command -v "$TOOL" >/dev/null 2>&1 || { say "factory: '$TOOL' not found. Use: factory prompt \"...\" and paste the result into your tool."; exit 1; }
+    sync_roles
+    integrity || { say "factory: rules or tools changed outside a commit. Review with: git -C $FACTORY status"; exit 1; }
+    id="$(new_run "$*")"; say "factory: run folder runs/$id"
+    if [ "$TOOL" = "claude" ]; then exec claude --add-dir "$FACTORY" "$(start_sentence "$id" "$*")"
+    else exec "$TOOL" "$(start_sentence "$id" "$*")"; fi ;;
+esac

@@ -1,0 +1,5 @@
+#!/bin/bash
+# No change to the Factory is committed unless its own tests pass.
+ROOT="$(git rev-parse --show-toplevel)"
+python3 "$ROOT/tools/tests/run_tests.py" > /tmp/factory-tests.log 2>&1 || { tail -15 /tmp/factory-tests.log; echo "commit blocked: Factory tests fail"; exit 1; }
+tail -1 /tmp/factory-tests.log
